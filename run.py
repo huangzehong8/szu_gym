@@ -1,76 +1,62 @@
-import json
+# -*- coding: utf-8 -*-
+"""
+Author: HuangZehong
+Created Time: 2024/04/24
+Last Edited Time: 2024/04/25
+"""
 import time
+from datetime import datetime
+from dataclasses import dataclass, field
+import logging
 
-import requests
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from gym_ticket import Ticket
 
 
-url = 'https://ehall.szu.edu.cn/qljfwapp/sys/lwSzuCgyy/index.do?t_s=1713928760905#/sportVenue'
+@dataclass
+class UserInfo:
+    url: str = field(default='https://ehall.szu.edu.cn/qljfwapp/sys/lwSzuCgyy/index.do?t_s=1713928760905#/sportVenue')
+    username: str = field(default='2210433011')
+    password: str = field(default='08211212')
+    payment_password: str = field(default='211212')
+    
+    campus: str = field(default='粤海校区')
+    sport: str = field(default='二楼有氧健身')
+    method: str = field(default='散场')
+    date: str = field(default='2024-04-26')
+    time: str = field(default='08:00-09:00')
+    venue: str = field(default='二楼健身房')
 
 
 def main():
-    with open('./config.json', 'r') as f:
-        cfg = json.load(f)
-    print(cfg)
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    args = UserInfo()
+    logging.info(args)
     
-    driver = webdriver.Chrome()
-    driver.get(url)
+    ticket = Ticket(args=args)
+    wait(ticket.target_time)
+    code = ticket.start()
+    if code == '201':
+        logging.info('恭喜你！抢票成功！')
+    elif code == '400':
+        logging.info('很抱歉，未抢到票！')
+    elif code == '401':
+        logging.info('抢到票但未成功支付，请尽快手动支付！')
+    else:
+        raise ValueError(f'状态码异常: {code}')
     
-    # 登录
-    driver.find_element(by=By.ID, value='username').click()
-    driver.find_element(by=By.ID, value='username').clear()
-    driver.find_element(by=By.ID, value='username').send_keys(cfg['username'])
-    driver.find_element(by=By.ID, value='password').click()
-    driver.find_element(by=By.ID, value='password').clear()
-    driver.find_element(by=By.ID, value='password').send_keys(cfg['password'])
-    driver.find_element(by=By.ID, value='password').send_keys(Keys.ENTER)
-    
-    # 点击“粤海校区”
-    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "(//div[@class='bh-btn bh-btn-primary'])")))
-    buttons = driver.find_elements(By.XPATH, "(//div[@class='bh-btn bh-btn-primary'])")
-    buttons[0].click()
-    
-    # 点击“一楼重量型健身”
-    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "(//div[@class='frame-5'])")))
-    buttons = driver.find_elements(By.XPATH, "(//div[@class='frame-5'])")
-    buttons[7].click()
-    
-    # 选择日期、时间、场地
-    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, f"//label[@for='{cfg['date']}']")))
-    driver.find_elements(By.XPATH, f"//label[@for='{cfg['date']}']")[0].click()
-    driver.find_elements(By.XPATH, f"//label[@for='{cfg['time']}']")[0].click()
-    # driver.find_elements(By.XPATH, "//label[@for='312801690c364d2cb56df744a39f38f1']")[0].click()
-    driver.find_elements(By.XPATH, "//label[@for='e74cd398ae334edb9fb1f707bae00cd9']")[0].click()
-    
-    # 提交预约
-    buttons = driver.find_elements(By.XPATH, "(//button[@class='bh-btn bh-btn-default bh-btn-large'])")
-    buttons[1].click()
-    
-    # 支付
-    # 点击“未支付”
-    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "//a[contains(@class, 'j-row-pay')]")))
-    buttons = driver.find_elements(By.XPATH, "//a[contains(@class, 'j-row-pay')]")
-    buttons[0].click()
-    # 点击“体育经费支付”
-    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, "(//button[@class='bh-btn bh-btn-primary bh-pull-right'])")))
-    buttons = driver.find_elements(By.XPATH, "(//button[@class='bh-btn bh-btn-primary bh-pull-right'])")
-    buttons[0].click()
-    # 跳转到新的窗口
-    window_handles = driver.window_handles  # 获取所有窗口句柄
-    driver.switch_to.window(window_handles[-1])  # 切换到最新窗口
-    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.ID, "btnNext"))).click()  # 点击“下一步”
-    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.ID, "password"))).click()  # 点击“密码框”
-    # 输入密码
-    for c in cfg['pay_password']:
-        WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CLASS_NAME, f"key-{c}"))).click()
-    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CLASS_NAME, f"key-11"))).click()
-    WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.ID, "qrbtn"))).click()  # 确认支付
-    
-    time.sleep(10)
+
+def wait(target_time: datetime) -> None:
+    """等到放票前1分钟再登录网站"""
+    now = datetime.now()
+    time_diff = (target_time - now).total_seconds()
+    if time_diff > 60:
+        # 放票前5秒开始抢
+        logging.info(f'距离放票时间还有{time_diff / 60}分钟，等待放票中...')
+        time.sleep(time_diff - 60)
+    logging.info('准备开始抢票')
 
 
 if __name__ == '__main__':
