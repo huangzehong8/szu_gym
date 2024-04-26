@@ -1,30 +1,17 @@
 # -*- coding: utf-8 -*-
 """
 Author: HuangZehong
+E-Mail: zh.huang8.cn@gmail.com
 Created Time: 2024/04/24
-Last Edited Time: 2024/04/25
+Last Edited Time: 2024/04/26
 """
 import time
+import argparse
 from datetime import datetime
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 import logging
 
 from gym_ticket import Ticket
-
-
-@dataclass
-class UserInfo:
-    url: str = field(default='https://ehall.szu.edu.cn/qljfwapp/sys/lwSzuCgyy/index.do?t_s=1713928760905#/sportVenue')
-    username: str = field(default='2210433011')
-    password: str = field(default='08211212')
-    payment_password: str = field(default='211212')
-    
-    campus: str = field(default='粤海校区')
-    sport: str = field(default='二楼有氧健身')
-    method: str = field(default='散场')
-    date: str = field(default='2024-04-26')
-    time: str = field(default='08:00-09:00')
-    venue: str = field(default='二楼健身房')
 
 
 def main():
@@ -32,7 +19,7 @@ def main():
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
-    args = UserInfo()
+    args = parse_args()
     logging.info(args)
     
     ticket = Ticket(args=args)
@@ -46,6 +33,41 @@ def main():
         logging.info('抢到票但未成功支付，请尽快手动支付！')
     else:
         raise ValueError(f'状态码异常: {code}')
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='SZU_GYM')
+    parser.add_argument('-u', '--url', type=str, default='https://ehall.szu.edu.cn/qljfwapp/sys/lwSzuCgyy/index.do?t_s=1713928760905#/sportVenue', help='SZU预定体育场馆的网址')
+    parser.add_argument('-U', '--username', type=str, default='', help='学号')
+    parser.add_argument('-P', '--password', type=str, default='', help='登陆密码')
+    parser.add_argument('-p', '--pay_password', type=str, default='', help='支付密码')
+    parser.add_argument('-c', '--campus', type=str, default='粤海校区', help='校区，“粤海校区”或“丽湖校区”')
+    parser.add_argument('-s', '--sport', type=str, default='排球', help='体育项目')
+    parser.add_argument('-m', '--method', type=str, default='', help='预约方式，此参数暂时无效，无需指定')
+    parser.add_argument('-d', '--date', type=str, default='2024-04-26', help='预约日期')
+    parser.add_argument('-t', '--time', type=str, default='21:00-22:00', help='预约时间段')
+    parser.add_argument('-v', '--venue', type=str, default='', help='场地，不指定则会自动抢任意空闲场地，建议不要指定场地')
+    _args = parser.parse_args()
+    args = UserInfo()
+    for f in fields(UserInfo):
+        if f.name in _args:
+            setattr(args, f.name, getattr(_args, f.name))
+    return args
+
+
+@dataclass
+class UserInfo:
+    url: str = field(default='https://ehall.szu.edu.cn/qljfwapp/sys/lwSzuCgyy/index.do?t_s=1713928760905#/sportVenue')
+    username: str = field(default='xxxxxxxxxx')  # 学号
+    password: str = field(default='xxxxxxxxxx')  # 登录密码
+    pay_password: str = field(default='xxxxxxxxxx')  # 支付密码
+    
+    campus: str = field(default='粤海校区')  # 校区
+    sport: str = field(default='排球')  # 体育项目
+    method: str = field(default='')  # TODO: 此参数暂时无效，无需指定
+    date: str = field(default='2024-04-26')  # 预约日期
+    time: str = field(default='21:00-22:00')  # 预约时间段
+    venue: str = field(default='')  # 场地，不指定则会自动抢任意空闲场地，建议不要指定场地
     
 
 def wait(target_time: datetime) -> None:
